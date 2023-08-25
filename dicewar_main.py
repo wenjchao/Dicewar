@@ -32,12 +32,13 @@ def game():
         targets.clear
         targets.append(None)
         for i in players:
+            if i.territories_num == 0:
+                players.remove(i)
+                continue
             targets.append(turn(i, players, territories))
             if targets[-1] == "finish":
                 game_continues = False
                 break
-            if i.territories_num == 0:
-                players.remove(i)
 
 # A single turn for a single player 
 def turn(current_player, players, territories):
@@ -67,6 +68,7 @@ def turn(current_player, players, territories):
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         mouse_pos = pygame.mouse.get_pos()
                         if button_rect.collidepoint(mouse_pos):
+                            distribute_dice(current_player, territories)
                             return
                         for territory in territories:
                             territory_vertices = [pygame.math.Vector2(x, y) for x, y in territory.vertex]
