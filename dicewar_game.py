@@ -3,12 +3,10 @@ import random
 import math
 import random
 import time
-start_time = time.time()
 
 # Define a single hexagon
 class Hexagon():
-    def __init__(self, index, row_index, col_index, center, hexagons):
-        self.index = index
+    def __init__(self, row_index, col_index, center, hexagons):
         self.row_index = row_index
         self.col_index = col_index
         self.center = center
@@ -66,11 +64,16 @@ class Player:
         self.color = colors[index % len(colors)]
 
 class DicewarGame(Hexagon, Territory, Player):
-    def __init__(self, rows = 15, cols = 20, player_num = 8):
+    def __init__(self, rows = 15, cols = 10, player_num = 8):
 
         self.hexagons = []
         self.territories = []
         self.players = []
+
+        # key = (hex.col - neigh.col, hex.row - neigh.row, hex.col % 2 ), value = direction
+        self.direction_dict = {(0,1,0):4, (0,1,1):4, (0,-1,0):1, (0,-1,1):1, 
+                               (-1,0,0):0, (-1,1,0):5, (-1,-1,1):0, (-1,0,1):5, 
+                               (1,0,0):2, (1,1,0):3, (1,-1,1):2, (1,0,1):3}
 
         # Set up parameters
         self.player_num = player_num
@@ -88,7 +91,7 @@ class DicewarGame(Hexagon, Territory, Player):
 
         self.generate_map()
         self.find_neighbor_territories()
-        self.calculate_player_territory()
+        self.calculate_player_territory(None, None)
 
     # Generate map territories
     def generate_map(self):
@@ -100,11 +103,11 @@ class DicewarGame(Hexagon, Territory, Player):
         for i in range(self.player_num):
             players.append(Player(i))
 
-        # Generate hexagon centers
+        # Generate hexagons
         hexagon_index = 0
         for row in range(self.rows):
             for col in range(self.cols):
-                hexagons.append(Hexagon(hexagon_index, row, col, None, hexagons))
+                hexagons.append(Hexagon(row, col, None, hexagons))
                 hexagon_index += 1
 
         # Generate territory and distritube the hexagons to territories
@@ -123,7 +126,7 @@ class DicewarGame(Hexagon, Territory, Player):
             starting_hexagon.territory = territories[current_terrindex]
             self.find_neighbor_hexagon(starting_hexagon, territories[current_terrindex])
 
-            if len(territories[current_terrindex].hexagon) < 4 :
+            if len(territories[current_terrindex].hexagon) < 3 :
                 for hexagon in territories[current_terrindex].hexagon:
                     new_territory = random.choice(hexagon.neighbor).territory
                     new_territory.hexagon.append (hexagon)
@@ -139,7 +142,7 @@ class DicewarGame(Hexagon, Territory, Player):
         neighbor_list = current_hexagon.neighbor
         random.shuffle(neighbor_list)
         for neighbor in neighbor_list:
-            if neighbor.territory == None and len(current_territory.hexagon) < 7:
+            if neighbor.territory == None and len(current_territory.hexagon) < 4:
                 neighbor.territory = current_territory
                 self.find_neighbor_hexagon(neighbor, current_territory)
 
@@ -150,124 +153,42 @@ class DicewarGame(Hexagon, Territory, Player):
                 for neighbor_hex in hexagon.neighbor:
                     temp_col = hexagon.col_index
                     temp_row = hexagon.row_index
+                    neigh_col = neighbor_hex.col_index
+                    neigh_row = neighbor_hex.row_index
                     if neighbor_hex.territory != territory:
                         if neighbor_hex.territory not in territory.neighbor:
                             territory.neighbor.append(neighbor_hex.territory)
 
-                        temp_index = hexagon.index - neighbor_hex.index
                         # confirm the border vertex and the direction of the border with neighbors
                         # the index of the vertice starts form the right and go clockwise
                         # the index of the direction of the border starts form the lower_right and go clockwise
-                        if temp_index == self.cols:
-                            self.border_direction(hexagon,4)
-                        if temp_index == -self.cols:
-                            self.border_direction(hexagon,1)
-                        if temp_index == self.cols-1:
-                            self.border_direction(hexagon,5)
-                        if temp_index == -self.cols+1:
-                            self.border_direction(hexagon,2)
-                        if temp_index == self.cols+1:
-                            self.border_direction(hexagon,3)
-                        if temp_index == -self.cols-1:
-                            self.border_direction(hexagon,0)
-                        if temp_index == 1:
-                            if temp_col % 2 == 0:
-                                self.border_direction(hexagon,2)
-                            elif temp_col % 2 == 1:
-                                self.border_direction(hexagon,3)
-                        if temp_index == -1:
-                            if temp_col % 2 == 0:
-                                self.border_direction(hexagon,0)
-                            elif temp_col % 2 == 1:
-                                self.border_direction(hexagon,5)
+                        self.border_direction(hexagon, {self.direction_dict[(temp_col - neigh_col, temp_row - neigh_row, temp_col % 2 )]})
 
                 # confirm the border vertex and the direction of the border without neighbors
-                if temp_col == 0:
-                    self.border_direction(hexagon,2)
-                    self.border_direction(hexagon,3)
-                if temp_col == self.cols-1:
-                    self.border_direction(hexagon,5)
-                    self.border_direction(hexagon,0)
+                if temp_col == 0: self.border_direction(hexagon,{2,3})
+                if temp_col == self.cols - 1: self.border_direction(hexagon,{5,0})
                 if temp_row == 0:
-                    if temp_col % 2 == 0:
-                        self.border_direction(hexagon,3)
-                        self.border_direction(hexagon,4)
-                        self.border_direction(hexagon,5)
-                    elif temp_col % 2 == 1:
-                        self.border_direction(hexagon,4)
+                    if temp_col % 2 == 0: self.border_direction(hexagon,{3,4,5})
+                    else: self.border_direction(hexagon,{4})
                 if temp_row == self.rows - 1:
-                    if temp_col % 2 == 0:
-                        self.border_direction(hexagon,1)
-                    elif temp_col % 2 == 1:
-                        self.border_direction(hexagon,0)
-                        self.border_direction(hexagon,1)
-                        self.border_direction(hexagon,2)
+                    if temp_col % 2 == 0: self.border_direction(hexagon,{1})
+                    else: self.border_direction(hexagon,{0,1,2})
 
     # To simplify the function find_neighbor_territories
     def border_direction(self, hexagon, direction):
-        if direction not in hexagon.border_direction:
-            hexagon.border_direction.append(direction)
-
-    def count_player_dice(self, player):
-        total_dice = 0
-        for territory in self.territories:
-            if territory.owner == player:
-                total_dice +=  territory.dice_count
-        return total_dice + player.undistributed
-    
-    # hold every combat
-    def resolve_combat(self, attacker, defender):
-        attacker_rolls = [random.randint(1, 6) for _ in range(attacker.dice_count)]
-        defender_rolls = [random.randint(1, 6) for _ in range(defender.dice_count)]
+        for i in direction:
+            if i not in hexagon.border_direction: 
+                hexagon.border_direction.append(i)
         
-        attacker_sum = sum(attacker_rolls)
-        defender_sum = sum(defender_rolls)
-        
-        if attacker_sum > defender_sum:
-            defender.owner = attacker.owner
-            defender.dice_count = attacker.dice_count - 1
-            attacker.dice_count = 1
-        else:
-            attacker.dice_count = 1
-
-        return attacker_rolls, defender_rolls
-    
-    # unclever AI with fixed algorithm
-    def primary_AI (self, current_player):
-        territories = self.territories
-        # identify strong enemies
-        strong_enemy = []
-        strength = [0]
-        for player in self.players:
-            if player.territories_num >= len(territories) / 4 and player != current_player:
-                player_dice = self.count_player_dice(player)
-                if strength[0] - player.territories_num - player_dice >= len(territories)/ 10:
-                    continue
-                if player.territories_num + player_dice - strength[0] >= len(territories)/ 10:
-                    strong_enemy.clear()
-                    strength.clear()
-                strong_enemy.append(player)
-                strength.append(player.territories_num + player_dice)
-                strength.sort(reverse=True)
-
-        # attack
-        for territory in territories:
-            if territory.owner == current_player and territory.dice_count > 1:
-                random_neighbor = territory.neighbor
-                random.shuffle(random_neighbor)
-                for neighbor in random_neighbor:
-                    if territory.dice_count >= neighbor.dice_count and neighbor.owner != current_player:
-                        if len(strong_enemy) == 0:
-                            return True, territory, neighbor
-                        else:
-                            if neighbor.owner in strong_enemy:
-                                return True, territory, neighbor
-        return False, None, None
-    
     # calculate all player's score
-    def calculate_player_territory(self):
+    def calculate_player_territory(self, previous_attacker, previous_defender):
         maxi = len(self.territories) / 2 + 1
-        for player in self.players:
+        if previous_attacker == None or previous_defender == None:
+            player_list = self.players
+        else:
+            player_list = [previous_attacker, previous_defender]
+
+        for player in player_list:
             territory_count = 0
             list = []
             for territory in self.territories:
@@ -289,9 +210,97 @@ class DicewarGame(Hexagon, Territory, Player):
                 current_list.append(neighbor)
                 current_count += self.find_adjecant_territory(current_list, neighbor, current_player)
         return current_count
+    
+    # hold every combat
+    def resolve_combat(self, attacker, defender):
+        attacker_rolls = [random.randint(1, 6) for _ in range(attacker.dice_count)]
+        defender_rolls = [random.randint(1, 6) for _ in range(defender.dice_count)]
+        attacker_sum = sum(attacker_rolls)
+        defender_sum = sum(defender_rolls)
+        
+        if attacker_sum > defender_sum:
+            defender.owner = attacker.owner
+            defender.dice_count = attacker.dice_count - 1
+            attacker.dice_count = 1
+            success = True
+        else:
+            attacker.dice_count = 1
+            success = False
 
+        return success, attacker_rolls, defender_rolls
+    
+    # unclever AI with fixed algorithm
+    def primary_AI (self, current_player):
+        territories = self.territories
+        # identify strong enemies
+        strong_enemy = []
+        strength = [0]
+        for player in self.players:
+            player_dice = self.count_player_dice(player)
+            if player.territories_num + player_dice >= len(territories) and player != current_player:
+                if strength[0] - player.territories_num - player_dice >= len(territories)/ 3:
+                    continue
+                if player.territories_num + player_dice - strength[0] >= len(territories)/ 3:
+                    strong_enemy.clear()
+                    strength.clear()
+                strong_enemy.append(player)
+                strength.append(player.territories_num + player_dice)
+                strength.sort(reverse=True)
 
-    # distribute dice after each turn
+        # attack
+        for territory in territories:
+            if territory.owner == current_player and territory.dice_count > 1:
+                random_neighbor = territory.neighbor
+                random.shuffle(random_neighbor)
+                for neighbor in random_neighbor:
+                    if territory.dice_count >= neighbor.dice_count and neighbor.owner != current_player:
+                        if len(strong_enemy) == 0 or strength[0] - current_player.territories_num - self.count_player_dice(current_player) < len(territories)/ 2 :
+                            return True, territory, neighbor
+                        else:
+                            if neighbor.owner in strong_enemy:
+                                return True, territory, neighbor
+        return False, None, None
+    
+    def old_primary_AI (self, current_player):
+        territories = self.territories
+        # identify strong enemies
+        strong_enemy = []
+        strength = [0]
+        for player in self.players:
+            player_dice = self.count_player_dice(player)
+            if player.territories_num >= len(territories)/4 and player != current_player:
+                if strength[0] - player.territories_num - player_dice >= len(territories)/ 10:
+                    continue
+                if player.territories_num + player_dice - strength[0] >= len(territories)/ 10:
+                    strong_enemy.clear()
+                    strength.clear()
+                strong_enemy.append(player)
+                strength.append(player.territories_num + player_dice)
+                strength.sort(reverse=True)
+
+        # attack
+        for territory in territories:
+            if territory.owner == current_player and territory.dice_count > 1:
+                random_neighbor = territory.neighbor
+                random.shuffle(random_neighbor)
+                for neighbor in random_neighbor:
+                    if territory.dice_count >= neighbor.dice_count and neighbor.owner != current_player:
+                        if len(strong_enemy) == 0 :
+                            return True, territory, neighbor
+                        else:
+                            if neighbor.owner in strong_enemy:
+                                return True, territory, neighbor
+        return False, None, None
+
+    # for primary AI to evaluate other players
+    def count_player_dice(self, player):
+        total_dice = 0
+        for territory in self.territories:
+            if territory.owner == player:
+                total_dice +=  territory.dice_count
+        return total_dice + player.undistributed
+
+    # distribute dice after each turn: undistributed dice + current adjacent territory counts (player's score)
     def distribute_dice(self, current_player):
         list = []
         for territory in self.territories:
@@ -309,13 +318,14 @@ class DicewarGame(Hexagon, Territory, Player):
             if temp_territory.dice_count == self.max_dice:
                 list.remove(temp_territory)
         
-    # check if the game ends
+    # check if someone wins
     def check_victory(self):
         for player in self.players:
             if player.territories_num == len(self.territories):
                 return player.index
         return None
 
+# calculate center_x, center_y for each hexagon, by ChatGPT
 def set_hexagon_center (hexagon, screen_width, screen_height, rows, cols, hexagon_size):
 
     # Calculate the total width and height of the hexagonal grid
@@ -333,66 +343,22 @@ def set_hexagon_center (hexagon, screen_width, screen_height, rows, cols, hexago
     hexagon.center = (center_x, center_y)
 
 # find the border vertex of a territory using recursion
-def find_next_vertex(hexagons, current_territory, current_direction, current_hexagon, hexagon_size, cols):
+def find_next_vertex(hexagons, current_territory, current_direction, current_hexagon, hexagon_size, cols, direction_dict):
 
     vertex = generate_hexagon_vertices(current_hexagon.center[0], current_hexagon.center[1], hexagon_size)[(current_direction + 1) % 6]
-    if vertex in current_territory.vertex:
-        return
+    if vertex in current_territory.vertex: return
+    else: current_territory.vertex.append(vertex)
+    
+    # either current_direction + 1 in curent_hexagon is the next border, or current_direction + 5 in the hexagon with direction current_direction + 1 is
+    if (current_direction + 1) % 6 in current_hexagon.border_direction: find_next_vertex(hexagons, current_territory, (current_direction + 1) % 6, current_hexagon, hexagon_size, cols, direction_dict)
     else:
-        current_territory.vertex.append(vertex)
+        temp_dir = {i for i in direction_dict if direction_dict[i] == (current_direction + 1) % 6}
+        for i in temp_dir:
+            if (current_direction + 5) % 6 in hexagons[ current_hexagon.col_index - i[0] + cols*(current_hexagon.row_index - i[1]) ].border_direction and current_hexagon.col_index % 2 == i[2]:
+                find_next_vertex(hexagons, current_territory, (current_direction + 5) % 6, hexagons[ current_hexagon.col_index - i[0] + cols*(current_hexagon.row_index - i[1]) ], hexagon_size, cols, direction_dict)
+                break
 
-    if current_direction == 0:
-        if 1 in current_hexagon.border_direction:
-            find_next_vertex(hexagons, current_territory, 1, current_hexagon, hexagon_size, cols)
-        else:
-            if 5 in hexagons[current_hexagon.index + cols].border_direction: 
-                find_next_vertex(hexagons, current_territory, 5, hexagons[current_hexagon.index + cols], hexagon_size, cols)
-            else: print("ERROR")
-    if current_direction == 1:
-        if 2 in current_hexagon.border_direction:
-            find_next_vertex(hexagons, current_territory, 2, current_hexagon, hexagon_size, cols)
-        else:
-            if 0 in hexagons[current_hexagon.index -1].border_direction and current_hexagon.col_index % 2 == 0: 
-                find_next_vertex(hexagons, current_territory, 0, hexagons[current_hexagon.index -1], hexagon_size, cols)
-            elif 0 in hexagons[current_hexagon.index + cols - 1].border_direction and current_hexagon.col_index % 2 == 1: 
-                find_next_vertex(hexagons, current_territory, 0, hexagons[current_hexagon.index + cols -1], hexagon_size, cols)
-            else: print("ERROR")
-    if current_direction == 2:
-        if 3 in current_hexagon.border_direction:
-            find_next_vertex(hexagons, current_territory, 3, current_hexagon, hexagon_size, cols)
-        else:
-            if 1 in hexagons[current_hexagon.index -1].border_direction and current_hexagon.col_index % 2 == 1: 
-                find_next_vertex(hexagons, current_territory, 1, hexagons[current_hexagon.index -1], hexagon_size, cols)
-            elif 1 in hexagons[current_hexagon.index - cols -1].border_direction and current_hexagon.col_index % 2 == 0: 
-                find_next_vertex(hexagons, current_territory, 1, hexagons[current_hexagon.index - cols -1], hexagon_size, cols)
-            else: print("ERROR")
-    if current_direction == 3:
-        if 4 in current_hexagon.border_direction:
-            find_next_vertex(hexagons, current_territory, 4, current_hexagon, hexagon_size, cols)
-        else:
-            if 2 in hexagons[current_hexagon.index - cols].border_direction: 
-                find_next_vertex(hexagons, current_territory, 2, hexagons[current_hexagon.index - cols], hexagon_size, cols)
-            else: print("ERROR")
-    if current_direction == 4:
-        if 5 in current_hexagon.border_direction:
-            find_next_vertex(hexagons, current_territory, 5, current_hexagon, hexagon_size, cols)
-        else:
-            if 3 in hexagons[current_hexagon.index +1].border_direction and current_hexagon.col_index % 2 == 1: 
-                find_next_vertex(hexagons, current_territory, 3, hexagons[current_hexagon.index +1], hexagon_size, cols)
-            elif 3 in hexagons[current_hexagon.index - cols +1].border_direction and current_hexagon.col_index % 2 == 0: 
-                find_next_vertex(hexagons, current_territory, 3, hexagons[current_hexagon.index - cols +1], hexagon_size, cols)
-            else: print("ERROR")
-    if current_direction == 5:
-        if 0 in current_hexagon.border_direction:
-            find_next_vertex(hexagons, current_territory, 0, current_hexagon, hexagon_size, cols)
-        else:
-            if 4 in hexagons[current_hexagon.index +1].border_direction and current_hexagon.col_index % 2 == 0: 
-                find_next_vertex(hexagons, current_territory, 4, hexagons[current_hexagon.index +1], hexagon_size, cols)
-            elif 4 in hexagons[current_hexagon.index + cols +1].border_direction and current_hexagon.col_index % 2 == 1: 
-                find_next_vertex(hexagons, current_territory, 4, hexagons[current_hexagon.index + cols +1], hexagon_size, cols)
-            else: print("ERROR")
-
-# Generate hexagon vertices
+# Generate hexagon vertices, 0 on the right, rotate clockwise
 def generate_hexagon_vertices(center_x, center_y, hexagon_size):
     vertices = []
     for i in range(6):
@@ -412,6 +378,7 @@ def display_map (selected_attacker, selected_defender, current_player, players, 
     screen.fill(white)
     for territory in territories:
 
+        # Draw each territory with player's color
         if territory == selected_attacker:
             territory_color = black  # Attacker color
             font_color = selected_attacker.owner.color
@@ -420,23 +387,21 @@ def display_map (selected_attacker, selected_defender, current_player, players, 
             font_color = selected_defender.owner.color
         else: 
             territory_color = territory.owner.color
+            res=[]
+            for i in range(0,len(territory_color)):
+                res.append(255 * (1 - (territory.dice_count + 22) / 30) + territory_color[i] * (territory.dice_count + 22) / 30)
+            territory_color = tuple(res)
             font_color = black if sum(territory_color) > 400 else white
-
-
         pygame.draw.polygon(screen, territory_color, territory.vertex, 0)
         pygame.draw.polygon(screen, black, territory.vertex, 2)
 
+        # Display dice count on each territory
         font = pygame.font.Font(None, 36)
         text = font.render(str(territory.dice_count), True, font_color)
         text_rect = text.get_rect(center=territory.hexagon[0].center)
         screen.blit(text, text_rect)
-
-        font = pygame.font.Font(None, 30)
-        pygame.draw.rect(screen, black, button_rect)
-        text = font.render("End Turn", True, white)
-        text_rect = text.get_rect(center=button_rect.center)
-        screen.blit(text, text_rect)
     
+    # Display player indormation on the left
     for player in players:
         player_font = pygame.font.Font(None, 30)
         player_text = f"P{player.index}: {player.territories_num}"
@@ -456,11 +421,17 @@ def display_map (selected_attacker, selected_defender, current_player, players, 
     current_player_text = f"Total territories: {len(territories)}"
     current_player_surface = current_player_font.render(current_player_text, True, black)
     screen.blit(current_player_surface, (300,20))
+
+    # Display Endturn button
+    font = pygame.font.Font(None, 30)
+    pygame.draw.rect(screen, black, button_rect)
+    text = font.render("End Turn", True, white)
+    text_rect = text.get_rect(center=button_rect.center)
+    screen.blit(text, text_rect)
         
     pygame.display.flip()
 
-
-# Add a function to display dice rolls graphically
+# Add a function to display dice rolls graphically, suggested by ChatGPT
 def display_dice_rolls(attacker_color, attacker_rolls, defender_color, defender_rolls):
     black = (0, 0, 0)
     dice_size = 50
@@ -483,10 +454,10 @@ def display_dice_rolls(attacker_color, attacker_rolls, defender_color, defender_
     sum_surface = sum_font.render(sum_text, True, black)
     screen.blit(sum_surface, (20, 45))  # Adjust the position as needed
     pygame.display.flip()
-    #pygame.time.wait(2000)  # Display for 2 seconds
-    pygame.display.flip()
+    #pygame.time.wait(1000)  # Display for x/1000 seconds
+    #pygame.display.flip()
 
-# Draw a simple dice
+# Draw a simple dice, suggested by ChatGPT
 def draw_dice(x, y, value, color):
 
     white = (255, 255, 255)
@@ -506,7 +477,7 @@ def draw_dice(x, y, value, color):
         pygame.draw.circle(screen, dot_color, (x + dice_size // 4, y + 3 * dice_size // 4), dice_size // 10)
         pygame.draw.circle(screen, dot_color, (x + 3 * dice_size // 4, y + dice_size // 4), dice_size // 10)
 
-# check if the point is inside the polygon
+# check if the point is inside the polygon, suggested by ChatGPT
 def is_point_inside_polygon(point, vertices):
     intersections = 0
     prev_vertex = vertices[-1]
@@ -522,29 +493,28 @@ def is_point_inside_polygon(point, vertices):
 # Click on the attack first, and then click on the defender
 def human_move (current_player, players, territories, button_rect):
 
-    #display_map(None, None, current_player, game.players, game.territories, button_rect)
     selected_attacker = None
     selected_defender = None
     while selected_attacker == None or selected_defender == None:
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-                if button_rect.collidepoint(mouse_pos):
-                    return False, None, None
+                if button_rect.collidepoint(mouse_pos): # click on the endturn button
+                    return False, None, None 
                 for territory in territories:
                     territory_vertices = [pygame.math.Vector2(x, y) for x, y in territory.vertex]
                     mouse_pos = pygame.math.Vector2(mouse_pos)
                     if is_point_inside_polygon(mouse_pos, territory_vertices):
-                        if selected_attacker is None:
+                        if selected_attacker is None: # click on the attacking territory
                             if territory.dice_count > 1 and territory.owner == current_player:
                                 selected_attacker = territory
                                 display_map(selected_attacker, None, current_player, players, territories, button_rect)
-                        elif selected_defender is None:
+                        elif selected_defender is None: # click on the attacking territory again to cancel
                             if territory == selected_attacker:
                                 selected_attacker = None
                                 display_map(None, None, current_player, players, territories, button_rect)
                                 break
-                            elif territory.owner != current_player:
+                            elif territory.owner != current_player: # click on the defending territory
                                 if territory in selected_attacker.neighbor:
                                     selected_defender = territory
                                     return True, selected_attacker, selected_defender
@@ -557,50 +527,78 @@ if __name__ == "__main__":
     hexagon_size = 20
     button_rect = pygame.Rect(600, 30, 100, 40)
 
-    # Initialize pygame
-    #pygame.init()
-    #screen = pygame.display.set_mode((screen_width, screen_height))
-    #pygame.display.set_caption("Dice Wars Map")
-
-    # Player[human] is human or the learning AI
-    human = -1
+    visualize = False
+    if visualize: human = 0
+    else: human = -1 # Player[human] is human or the learning AI
+    statistic = True
     game = DicewarGame()
-    start_game_time = time.time()
-    total_decide_time = 0
-    total_attack_time = 0
-    total_calculate_time = 0
-    total_reset_time = 0
-    mean_index = 0.99
 
-    # Game repeated after finished
-    while True:
-        
-        # Set up each hexagon's center
-        #for hexagon in game.hexagons:
-        #    set_hexagon_center(hexagon, screen_width, screen_height, game.rows, game.cols, hexagon_size)
+    # Initialize pygame (CAN BE COMMENTED OUT)
+    if visualize:
+        pygame.init()
+        screen = pygame.display.set_mode((screen_width, screen_height))
+        pygame.display.set_caption("Dice Wars Map")
 
-        # Draw each territory
-        #for territory in game.territories:
-        #    find_next_vertex( game.hexagons, territory, territory.hexagon[0].border_direction[0] , territory.hexagon[0], hexagon_size, game.cols)
-        #display_map(None, None, game.players[0], game.players, game.territories, button_rect)
-
-        # A single game
-        
-        total_game_time = time.time() - start_game_time
-        print("--- %s seconds for game---" % total_game_time)
-        print("--- %s seconds for decide---" % total_decide_time)
-        print("--- %s seconds for combat---" % total_attack_time)
-        print("--- %s seconds for calculate---" % total_calculate_time)
-        print("--- %s seconds for residue ---" % (total_game_time - total_decide_time - total_attack_time - total_calculate_time - total_reset_time) )
+    if statistic:
+        # calculate each element of time used
         start_game_time = time.time()
         total_decide_time = 0
-        total_attack_time = 0
+        total_combat_time = 0
         total_calculate_time = 0
+        total_reset_time = 0
+        mean_index = 0.99
+        turns = 1
+        mean_turns = 0
+        games = 0
+        attacks = 0
+        mean_attacks = 0
+        #wins = [0,0]
 
+    # Game repeated after finished during loops
+    while True:
+        
+        if visualize:
+            # Set up each hexagon's center (CAN BE COMMENTED OUT)
+            for hexagon in game.hexagons:
+                set_hexagon_center(hexagon, screen_width, screen_height, game.rows, game.cols, hexagon_size)
+
+            # Draw each territory (CAN BE COMMENTED OUT)
+            for territory in game.territories:
+                find_next_vertex( game.hexagons, territory, territory.hexagon[0].border_direction[0] , territory.hexagon[0], hexagon_size, game.cols, game.direction_dict)
+        
+        if statistic:
+            # CALCULATE TIME
+            total_game_time = time.time() - start_game_time
+            print("--- %s seconds for game---" % total_game_time)
+            print("--- %s seconds for decide---" % total_decide_time)
+            print("--- %s seconds for combat---" % total_combat_time)
+            print("--- %s seconds for calculate---" % total_calculate_time)
+            print("--- %s seconds for residue ---" % (total_game_time - total_decide_time - total_combat_time - total_calculate_time - total_reset_time) )
+            print("%s games so far" % games)
+            print("%s turns in this game" % turns)
+            print("average %s turns a game" % mean_turns )
+            print("%s attacks in this game" % attacks)
+            print("average %s attacks a game" % mean_attacks )
+            print("average %s seconds a turn" % (total_game_time / turns))
+            #print("wins = " + str(wins[0]) + " , " + str(wins[1]))
+            start_game_time = time.time()
+            total_decide_time = 0
+            total_combat_time = 0
+            total_calculate_time = 0
+            mean_turns = (turns + games * mean_turns) / (games +1)
+            mean_attacks = (attacks + games * mean_attacks) / (games +1)
+            turns = 0
+            attacks = 0
+            games += 1
+
+        # A single game
         game_continues = True
         current_player_queue = 0
         while game_continues:
+            if statistic: turns += 1
+
             current_player = game.players[current_player_queue]
+            # delete eliminated players
             if current_player.territories_num == 0:
                 game.players.remove(current_player)
                 if current_player_queue == len(game.players): current_player_queue = 0
@@ -609,46 +607,57 @@ if __name__ == "__main__":
             # A single turn for current_player
             in_the_same_turn = True
             while in_the_same_turn:
-                #display_map(None, None, current_player, game.players, game.territories, button_rect)
+
+                # check if game ends
                 winner = game.check_victory()
                 if winner != None:
                     print("Player " + str(winner) +" win!")
                     game_continues = False
 
-                    start_reset_time = time.time()
+                    if statistic: start_reset_time = time.time() # CALCULATE TIME
                     game.reset()
-                    total_reset_time = (time.time() - start_reset_time)
-                    print("--- %s seconds for reset---" % total_reset_time)
+                    if statistic: total_reset_time = (time.time() - start_reset_time) # CALCULATE TIME
+                    if statistic: print("--- %s seconds for reset---" % total_reset_time) # CALCULATE TIME
+
+                    #if winner%2 ==0: wins[0] += 1
+                    #else: wins[1] +=1
 
                     break
+
+                if visualize: display_map(None, None, current_player, game.players, game.territories, button_rect)
 
                 # A single move: define selected_attacker and selected_defender
                 if current_player.index == human: 
                     in_the_same_turn, selected_attacker, selected_defender = human_move(current_player, game.players, game.territories, button_rect)
                 else:
-
-                    start_decide_time = time.time()
+                    if statistic: start_decide_time = time.time() # CALCULATE TIME
+                    #if current_player.index % 2 ==0: 
                     in_the_same_turn, selected_attacker, selected_defender = game.primary_AI(current_player)
-                    total_decide_time = total_decide_time +  (time.time() - start_decide_time)
-
+                    #else: in_the_same_turn, selected_attacker, selected_defender = game.old_primary_AI (current_player)
+                    if statistic: total_decide_time = total_decide_time +  (time.time() - start_decide_time) # CALCULATE TIME
 
                 # Attack
                 if in_the_same_turn == True:
 
-                    start_attack_time = time.time()
+                    if statistic: start_combat_time = time.time() # CALCULATE TIME
 
-                    #display_map(selected_attacker, selected_defender, current_player, game.players, game.territories, button_rect)
-                    attacker_rolls, defender_rolls = game.resolve_combat(selected_attacker, selected_defender)
+                    if visualize: display_map(selected_attacker, selected_defender, current_player, game.players, game.territories, button_rect)
+                    attacking_player = selected_attacker.owner
+                    defending_player = selected_defender.owner
+                    success, attacker_rolls, defender_rolls = game.resolve_combat(selected_attacker, selected_defender)
 
-                    total_attack_time = total_attack_time +  (time.time() - start_attack_time)
-                    start_calculate_time = time.time()
+                    if statistic: 
+                        total_combat_time = total_combat_time +  (time.time() - start_combat_time) # CALCULATE TIME
+                        start_calculate_time = time.time() # CALCULATE TIME
+                        attacks += 1
 
-                    #display_dice_rolls(selected_attacker.owner.color, attacker_rolls, selected_defender.owner.color, defender_rolls)  # Display dice rolls
-                    game.calculate_player_territory()
+                    if visualize: display_dice_rolls(attacking_player.color, attacker_rolls, defending_player.color, defender_rolls)  # (CAN BE COMMENTED OUT)
+                    if success: game.calculate_player_territory(attacking_player, defending_player)
 
-                    total_calculate_time = total_calculate_time +  (time.time() - start_calculate_time)
+                    if statistic: total_calculate_time = total_calculate_time +  (time.time() - start_calculate_time) # CALCULATE TIME
 
             game.distribute_dice(current_player)
+
+            # switch to next player
             if current_player_queue == len(game.players) - 1: current_player_queue = 0
             else: current_player_queue += 1
-
